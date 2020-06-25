@@ -1,0 +1,25 @@
+{
+	"name": "email-archiver",
+	"version": "1.0.0",
+	"description": "E-Mail archiver script to backup e-mails with their attachments from IMAP server.",
+	"main": "app.js",
+	"scripts": {
+		"start": "nodemon app.js"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ztancankiri/email-archiver.git"
+	},
+	"author": "Zafer Tan Çankırı",
+	"license": "ISC",
+	"bugs": {
+		"url": "https://github.com/ztancankiri/email-archiver/issues"
+	},
+	"homepage": "https://github.com/ztancankiri/email-archiver#readme",
+	"dependencies": {
+		"dotenv": "^8.2.0",
+		"fs": "0.0.1-security",
+		"imap": "^0.8.19",
+		"nodemon": "^2.0.4"
+	}
+}
