@@ -177,16 +177,17 @@ public class EMailArchiver {
                 Message[] messages = emailFolder.getMessages();
 
                 for (Message message : messages) {
-                    String dirName = String.format("E-Mails/%s/[%d] %s", emailFolder.getFullName(), counter++, sanitizeFilename(message.getSubject()));
+                    String subjectFileName = sanitizeFilename(message.getSubject()).trim();
+                    String dirName = String.format("E-Mails/%s/[%d] %s", emailFolder.getFullName(), counter++, subjectFileName);
 
                     if (new File(dirName).mkdirs()) {
                         System.out.printf(">> \"%s\" is created.%n", dirName);
 
                         if (isPlain(message)) {
-                            writeFile(String.format("%s/%s.txt", dirName, sanitizeFilename(message.getSubject())), String.format("--------------------------------------------------%n%s--------------------------------------------------%n%n%s", getHeaderText(message), getPlainText(message)));
+                            writeFile(String.format("%s/%s.txt", dirName, subjectFileName), String.format("--------------------------------------------------%n%s--------------------------------------------------%n%n%s", getHeaderText(message), getPlainText(message)));
                         } else if (isHTML(message)) {
-                            writeFile(String.format("%s/[META] %s.txt", dirName, sanitizeFilename(message.getSubject())), getHeaderText(message));
-                            writeFile(String.format("%s/%s.html", dirName, sanitizeFilename(message.getSubject())), getHTML(message));
+                            writeFile(String.format("%s/[META] %s.txt", dirName, subjectFileName), getHeaderText(message));
+                            writeFile(String.format("%s/%s.html", dirName, subjectFileName), getHTML(message));
                         }
 
                         if (message.getContentType().contains("multipart") && message.getContent() instanceof Multipart) {
