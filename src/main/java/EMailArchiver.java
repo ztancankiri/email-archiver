@@ -6,20 +6,19 @@ import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeUtility;
 import javax.activation.DataSource;
 import java.io.*;
-import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
 import static org.apache.commons.io.IOUtils.toByteArray;
 
-public class CheckingMails {
+public class EMailArchiver {
 
-    public static String sanitizeFilename(String name) {
-        return name.replaceAll("[:\\\\/*?|<>]", "_");
+    private static String sanitizeFilename(String name) {
+        return name.replaceAll("[:\\\\/*?|<>.\\s]", "_");
     }
 
-    public static void createFolders(List<String> folderNames) {
+    private static void createFolders(List<String> folderNames) {
         new File("E-Mails").mkdirs();
 
         for (String name :  folderNames) {
@@ -41,7 +40,7 @@ public class CheckingMails {
         System.out.println("Folders are created.");
     }
 
-    public static void traverseFolders(Folder root, List<String> folderNames) {
+    private static void traverseFolders(Folder root, List<String> folderNames) {
         folderNames.add(root.getFullName());
 
         try {
@@ -55,11 +54,14 @@ public class CheckingMails {
         }
     }
 
-    public static String getHeaderText(Message message) throws Exception {
+    private static String getHeaderText(Message message) throws Exception {
         StringBuilder stringBuilder = new StringBuilder();
         MimeMessageParser parser = new MimeMessageParser((MimeMessage) message).parse();
 
         stringBuilder.append("Subject: ").append(parser.getSubject()).append("\n");
+
+        stringBuilder.append("Date: ").append(message.getReceivedDate()).append("\n");
+
         stringBuilder.append("From: ").append(parser.getFrom()).append("\n");
 
         stringBuilder.append("To: ");
@@ -109,27 +111,31 @@ public class CheckingMails {
         return stringBuilder.toString();
     }
 
-    public static boolean isPlain(Message message) throws Exception {
+    private static boolean isPlain(Message message) throws Exception {
         return getPlainText(message) != null;
     }
 
-    public static String getPlainText(Message message) throws Exception {
+    private static boolean isHTML(Message message) throws Exception {
+        return getHTML(message) != null;
+    }
+
+    private static String getPlainText(Message message) throws Exception {
         return new MimeMessageParser((MimeMessage) message).parse().getPlainContent();
     }
 
-    public static String getHTML(Message message) throws Exception {
+    private static String getHTML(Message message) throws Exception {
         return new MimeMessageParser((MimeMessage) message).parse().getHtmlContent();
     }
 
-    public static void writeFile(String filePath, String content) throws IOException {
+    private static void writeFile(String filePath, String content) throws IOException {
         OutputStream outputStream = new FileOutputStream(new File(filePath));
         outputStream.write(content.getBytes());
         outputStream.close();
 
-        System.out.println(filePath + " is saved.");
+        System.out.println(">> \"" + filePath + "\" is saved.");
     }
 
-    public static void check(String host, String user, String password) {
+    public static void download(String host, String user, String password) {
         try {
             Properties properties = new Properties();
             properties.put("mail.store.protocol", "imaps");
@@ -141,60 +147,74 @@ public class CheckingMails {
             List<String> folderNames = new ArrayList<>();
             traverseFolders(store.getDefaultFolder(), folderNames);
 
+            int counter = 0;
+
             for (String folderName : folderNames) {
-                System.out.println(">> " + folderName);
+                if (folderName.length() == 0)
+                    continue;
+
+                Folder emailFolder = store.getFolder(folderName);
+                emailFolder.open(Folder.READ_ONLY);
+
+                Message[] messages = emailFolder.getMessages();
+                counter += messages.length;
+                emailFolder.close();
             }
+
+            System.out.println(">> E-Mail Count: " + counter);
 
             createFolders(folderNames);
 
+            counter = 1;
+
             for (String emailFolderName : folderNames) {
-                try {
-                    Folder emailFolder = store.getFolder(emailFolderName);
-                    emailFolder.open(Folder.READ_ONLY);
+                if (emailFolderName.length() == 0)
+                    continue;
 
-                    Message[] messages = emailFolder.getMessages();
+                Folder emailFolder = store.getFolder(emailFolderName);
+                emailFolder.open(Folder.READ_ONLY);
 
-                    int counter = 1;
-                    for (Message message : messages) {
-                        String dirName = MessageFormat.format("E-Mails/{0}/[{1}] {2}", emailFolder.getFullName(), counter++, sanitizeFilename(message.getSubject()));
+                Message[] messages = emailFolder.getMessages();
 
-                        new File(dirName).mkdirs();
-                        System.out.println(dirName + " is created.");
+                for (Message message : messages) {
+                    String dirName = String.format("E-Mails/%s/[%d] %s", emailFolder.getFullName(), counter++, sanitizeFilename(message.getSubject()));
 
-                        writeFile(dirName + "/header.txt", getHeaderText(message));
+                    if (new File(dirName).mkdirs()) {
+                        System.out.printf(">> \"%s\" is created.%n", dirName);
 
                         if (isPlain(message)) {
-                            writeFile(dirName + "/message.txt", getPlainText(message));
-                        } else {
-                            writeFile(dirName + "/message.html", getHTML(message));
+                            writeFile(String.format("%s/%s.txt", dirName, sanitizeFilename(message.getSubject())), String.format("--------------------------------------------------%n%s--------------------------------------------------%n%n%s", getHeaderText(message), getPlainText(message)));
+                        } else if (isHTML(message)) {
+                            writeFile(String.format("%s/[META] %s.txt", dirName, sanitizeFilename(message.getSubject())), getHeaderText(message));
+                            writeFile(String.format("%s/%s.html", dirName, sanitizeFilename(message.getSubject())), getHTML(message));
                         }
 
                         if (message.getContentType().contains("multipart") && message.getContent() instanceof Multipart) {
                             Multipart multiPart = (Multipart) message.getContent();
 
-                            for (int j = 0; j < multiPart.getCount(); j++) {
-                                MimeBodyPart part = (MimeBodyPart) multiPart.getBodyPart(j);
+                            for (int i = 0; i < multiPart.getCount(); i++) {
+                                MimeBodyPart part = (MimeBodyPart) multiPart.getBodyPart(i);
 
                                 if (Part.ATTACHMENT.equalsIgnoreCase(part.getDisposition())) {
                                     String fileName = MimeUtility.decodeText(part.getFileName());
 
-                                    System.out.println(dirName + "/" + fileName + " is being saved.");
+                                    System.out.printf(">> \"%s/%s\" is being saved.%n", dirName, fileName);
 
-                                    OutputStream outputStream = new FileOutputStream(new File(dirName + "/" + fileName));
+                                    OutputStream outputStream = new FileOutputStream(new File(String.format("%s/%s", dirName, fileName)));
                                     outputStream.write(toByteArray(part.getInputStream()));
                                     outputStream.close();
 
-                                    System.out.println(dirName + "/" + fileName + " is saved.");
+                                    System.out.printf(">> \"%s/%s\" is saved.%n", dirName, fileName);
                                 }
                             }
                         }
                     }
+                    else {
+                        System.out.printf("[!!!] >> \"%s\" could not be created.%n", dirName);
+                    }
+                }
 
-                    emailFolder.close(false);
-                }
-                catch (Exception e) {
-                    e.printStackTrace();
-                }
+                emailFolder.close(false);
             }
 
             store.close();

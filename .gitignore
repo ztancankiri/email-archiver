@@ -1,8 +1,5 @@
 .idea/*
-
-# IntelliJ
 out/
-
+target/
 *.class
 *.iml
-src/main/java/Main.java

@@ -28,12 +28,6 @@
             <version>1.6.0</version>
         </dependency>
 
-        <dependency>
-            <groupId>com.sun.mail</groupId>
-            <artifactId>javax.mail</artifactId>
-            <version>1.6.0</version>
-        </dependency>
-
         <!-- https://mvnrepository.com/artifact/commons-io/commons-io -->
         <dependency>
             <groupId>commons-io</groupId>
@@ -47,7 +41,5 @@
             <artifactId>commons-email</artifactId>
             <version>1.5</version>
         </dependency>
-
-
     </dependencies>
 </project>
